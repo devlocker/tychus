@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -33,6 +34,7 @@ func (r *runner) start(c *Configuration) {
 		}
 
 		go func() {
+			c.Logger.Debugf("Running: %v", strings.Join(r.args, " "))
 			if err := r.rerun(); err != nil {
 				r.events <- event{op: errored, info: err.Error()}
 			}

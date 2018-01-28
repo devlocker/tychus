@@ -100,10 +100,18 @@ func Start(args []string, c *Configuration) error {
 // sure to expand any quotes strings.
 func formatArgs(args []string, c *Configuration) ([]string, error) {
 	if c.Build.Enabled {
-		args = append([]string{filepath.Join(
-			c.Build.TargetPath,
-			c.Build.BinName,
-		)}, args...)
+		binPath, err := filepath.Abs(
+			filepath.Join(
+				c.Build.TargetPath,
+				c.Build.BinName,
+			),
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		args = append([]string{binPath}, args...)
 	}
 
 	// Can occur when running with build disabled. Since no binary to run, need
