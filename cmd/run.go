@@ -2,62 +2,70 @@ package cmd
 
 import (
 	"os"
+	"os/signal"
 	"strconv"
-	"strings"
+	"syscall"
 
 	"github.com/devlocker/tychus/tychus"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-var with string
-
 func init() {
 	rootCmd.AddCommand(runCmd)
-	runCmd.Flags().StringVarP(&with, "with", "w", "", "extra options to run with")
 }
 
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Reloads your application as you make changes to source files.",
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(with) > 1 {
-			args = append(args, strings.Fields(with)...)
-		}
-
 		start(args)
 	},
 }
 
 func start(args []string) {
-	c := &tychus.Configuration{}
-	c.Logger = tychus.NewLogger(debug)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(
+		stop,
+		os.Interrupt,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
 
+	// Load configuration and use default logger
+	c := &tychus.Configuration{}
 	err := c.Load(configFile)
 	if err != nil {
 		c.Logger.Fatal(err.Error())
 	}
 
-	c.Logger.Printf(
-		"Starting: build [%v], proxy [%v]",
-		isEnabledStr(c.Build.Enabled),
-		isEnabledStr(c.Proxy.Enabled),
-	)
+	c.Logger = tychus.NewLogger(debug)
 
 	// If PORT is set, use that instead of AppPort. For things like foreman
 	// where ports are automatically assigned.
-	port := os.Getenv("PORT")
-	if len(port) > 0 {
-		appPort, err := strconv.Atoi(port)
-		if err == nil {
-			c.Proxy.AppPort = appPort
+	port, ok := os.LookupEnv("PORT")
+	if ok {
+		if appPort, err := strconv.Atoi(port); err == nil {
+			c.AppPort = appPort
 		}
 	}
 
-	err = tychus.Start(args, c)
-	if err != nil {
-		c.Logger.Fatal(err.Error())
-	}
+	o := tychus.New(args, c)
+
+	// Run tychus
+	go func() {
+		err = o.Start()
+		if err != nil {
+			o.Stop()
+			c.Logger.Fatal(err.Error())
+		}
+	}()
+
+	<-stop
+	// Have to call `Stop`
+	o.Stop()
 }
 
 func isEnabledStr(b bool) string {

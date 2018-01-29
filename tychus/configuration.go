@@ -8,29 +8,13 @@ import (
 )
 
 type Configuration struct {
-	Watch  WatchConfig `yaml:"watch"`
-	Build  BuildConfig `yaml:"build'`
-	Proxy  ProxyConfig `yaml:"proxy"`
-	Logger Logger      `yaml:"-"`
-}
-
-type BuildConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	BuildCommand string `yaml:"build_command"`
-	BinName      string `yaml:"bin_name"`
-	TargetPath   string `yaml:"target_path"`
-}
-
-type WatchConfig struct {
-	Extensions []string `yaml:"extensions"`
-	Ignore     []string `yaml:"ignore"`
-}
-
-type ProxyConfig struct {
-	Enabled   bool `yaml:"enabled"`
-	AppPort   int  `yaml:"app_port"`
-	ProxyPort int  `yaml:"proxy_port"`
-	Timeout   int  `yaml:"timeout"`
+	Extensions   []string `yaml:"extensions"`
+	Ignore       []string `yaml:"ignore"`
+	ProxyEnabled bool     `yaml:"proxy_enabled"`
+	ProxyPort    int      `yaml:"proxy_port"`
+	AppPort      int      `yaml:"app_port"`
+	Timeout      int      `yaml:"timeout"`
+	Logger       Logger   `yaml:"-"`
 }
 
 func (c *Configuration) Write(path string) error {

@@ -72,22 +72,12 @@ func detectLangauge(dir string) (*tychus.Configuration, error) {
 	}
 
 	c := &tychus.Configuration{
-		Build: tychus.BuildConfig{
-			BuildCommand: "go build -i",
-			BinName:      "tychus-bin",
-			Enabled:      true,
-			TargetPath:   "tmp/",
-		},
-		Watch: tychus.WatchConfig{
-			Extensions: []string{".go"},
-			Ignore:     []string{"node_modules", "tmp", "log", "vendor"},
-		},
-		Proxy: tychus.ProxyConfig{
-			Enabled:   true,
-			AppPort:   3000,
-			ProxyPort: 4000,
-			Timeout:   10,
-		},
+		Extensions:   []string{".go"},
+		Ignore:       []string{"node_modules", "tmp", "log", "vendor"},
+		ProxyEnabled: true,
+		ProxyPort:    4000,
+		AppPort:      3000,
+		Timeout:      10,
 	}
 
 	// Go Project?
@@ -103,10 +93,7 @@ func detectLangauge(dir string) (*tychus.Configuration, error) {
 	for _, f := range files {
 		ext := filepath.Ext(f.Name())
 		if f.Name() == "Gemfile" || ext == ".rb" {
-			c.Build.Enabled = false
-			c.Build.BuildCommand = ""
-			c.Build.BinName = ""
-			c.Watch.Extensions = []string{".rb"}
+			c.Extensions = []string{".rb"}
 			return c, nil
 		}
 	}
@@ -115,10 +102,7 @@ func detectLangauge(dir string) (*tychus.Configuration, error) {
 	for _, f := range files {
 		ext := filepath.Ext(f.Name())
 		if ext == ".py" {
-			c.Build.Enabled = false
-			c.Build.BuildCommand = ""
-			c.Build.BinName = ""
-			c.Watch.Extensions = []string{".py"}
+			c.Extensions = []string{".py"}
 			return c, nil
 		}
 	}
@@ -127,8 +111,7 @@ func detectLangauge(dir string) (*tychus.Configuration, error) {
 	for _, f := range files {
 		ext := filepath.Ext(f.Name())
 		if f.Name() == "Cargo.toml" || ext == ".rs" {
-			c.Build.BuildCommand = "rustc main.rs"
-			c.Watch.Extensions = []string{".rs"}
+			c.Extensions = []string{".rs"}
 			return c, nil
 		}
 	}
@@ -137,10 +120,7 @@ func detectLangauge(dir string) (*tychus.Configuration, error) {
 	for _, f := range files {
 		ext := filepath.Ext(f.Name())
 		if f.Name() == "package.json" || ext == ".js" {
-			c.Build.Enabled = false
-			c.Build.BuildCommand = ""
-			c.Build.BinName = ""
-			c.Watch.Extensions = []string{".js"}
+			c.Extensions = []string{".js"}
 			return c, nil
 		}
 	}
