@@ -16,7 +16,11 @@ serve a request.
 ## Installation
 
 ### Homebrew on macOS
-Coming soon...
+
+```
+brew tap devlocker/tap
+brew install tychus
+```
 
 ### With Go
 Assuming you have a working Go environment and `GOPATH/bin` is in your `PATH`
