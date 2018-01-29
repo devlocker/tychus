@@ -99,8 +99,8 @@ proxy:
 
 ### Sample Configurations + Instructions:
 
-* [[Go|Example:-Go]]
-* [[Ruby + Sinatra|Example:-Ruby---Sinatra]]
-* [[Rust|Example:-Rust]]
-* [[Rust with Cargo|Example:-Rust-with-Cargo]]
+* [Go](https://github.com/devlocker/tychus/wiki/Example:-Go)
+* [Ruby + Sinatra](https://github.com/devlocker/tychus/wiki/Example:-Ruby---Sinatra)
+* [Rust](https://github.com/devlocker/tychus/wiki/Example:-Rust)
+* [Rust with Cargo](https://github.com/devlocker/tychus/wiki/Example:-Rust-with-Cargo)
 
