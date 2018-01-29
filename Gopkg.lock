@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/devlocker/devproxy"
   packages = ["devproxy"]
-  revision = "7f4d7778f9331c172de31b34f2d91fed79290ad1"
-  version = "0.1.0"
+  revision = "3983aef7dfa5997840de28c4b10c15105d72cd72"
+  version = "0.2.0"
 
 [[projects]]
   name = "github.com/fatih/color"
@@ -64,6 +64,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8feb42a2160ed5ee29737b155c2205491ca39a50c79546c63452bfc6f1130ae1"
+  inputs-digest = "34443a1952ecd2e03009897a75839408a7e2632098843ec2d5d5767866088af7"
   solver-name = "gps-cdcl"
   solver-version = 1
