@@ -5,3 +5,19 @@ builds:
       - linux
     goarch:
       - amd64
+    ldflags: -s -w -X github.com/devlocker/tychus/cmd.version={{.Version}}
+
+brew:
+  github:
+    owner: devlocker
+    name: homebrew-tap
+  commit_author:
+    name: Patrick Koperwas
+    email: patrick@devlocker.io
+  description: "Command line utility to live-reload your application."
+  folder: Formula
+  homepage: https://github.com/devlocker/tychus
+  test: |
+    system "#{bin}/tychus version"
+  install: |
+    bin.install "tychus"
