@@ -97,79 +97,10 @@ proxy:
   timeout: 10
 ```
 
-### Sample Configuration for a Sinatra Application
+### Sample Configurations + Instructions:
 
-```yaml
-watch:
-  extensions:
-  - .rb
-  - .erb
-  ignore:
-  - node_modules
-  - tmp
-  - log
-  - vendor
-build:
-  enabled: false
-  build_command: ""
-  bin_name: ""
-  target_path: tmp/
-proxy:
-  enabled: true
-  app_port: 4567
-  proxy_port: 4000
-  timeout: 10
-```
+* [[Go|Example:-Go]]
+* [[Ruby + Sinatra|Example:-Ruby---Sinatra]]
+* [[Rust|Example:-Rust]]
+* [[Rust with Cargo|Example:-Rust-with-Cargo]]
 
-```
-tychus run bundle exec ruby myapp.rb
-
-# Or in a Procfile (for use with foreman)
-# Foreman will set a PORT env variable, which will automatically get picked up
-# by tychus. No need to modify your config file.
-web: tychus run bundle exec ruby myapp.rb
-```
-
-### Sample Configuration for a Rust Application
-
-```yaml
-watch:
-  extensions:
-  - .rs
-  ignore:
-  - node_modules
-  - tmp
-  - log
-  - vendor
-build:
-  enabled: true
-  build_command: rustc hello.rs
-  bin_name: tychus-bin
-  target_path: ./
-proxy:
-  enabled: true
-  app_port: 3000
-  proxy_port: 4000
-```
-
-Sample program
-
-```rs
-// hello.rs
-fn main() {
-    println!("Hello World!");
-}
-```
-
-Each save rebuilds and runs the hello.rs program.
-```
-$ tychus run
-
-[tychus] Starting: build [enabled], proxy [enabled]
-[tychus] Build: Successful
-Hello World!
-[tychus] Build: Successful
-Hello World!
-[tychus] Build: Successful
-Hello World!
-```
