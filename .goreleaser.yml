@@ -1,0 +1,7 @@
+builds:
+  - binary: tychus
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
