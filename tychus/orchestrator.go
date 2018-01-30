@@ -12,6 +12,8 @@
 package tychus
 
 import (
+	"strings"
+
 	"github.com/devlocker/devproxy/devproxy"
 )
 
@@ -39,6 +41,8 @@ func New(args []string, c *Configuration) *Orchestrator {
 // Starts Tychus. Any filesystem changes will cause the command passed in to be
 // rerun. To avoid orphaning processes, make sure to call Stop before exiting.
 func (o *Orchestrator) Start() error {
+	o.printStartMessage()
+
 	stop := make(chan error, 1)
 
 	go o.watcher.start(o.config)
@@ -91,4 +95,17 @@ func (o *Orchestrator) Start() error {
 // Stops Tychus and forces any processes started by it that may be running.
 func (o *Orchestrator) Stop() error {
 	return o.runner.kill()
+}
+
+func (o *Orchestrator) printStartMessage() {
+	exts := o.config.Extensions
+	if len(exts) == 0 {
+		exts = []string{"all"}
+	}
+
+	o.config.Logger.Printf(
+		"Starting: watching extensions: [%v], ignoring dirs: [%v]",
+		strings.Join(exts, ", "),
+		strings.Join(o.config.Ignore, ", "),
+	)
 }

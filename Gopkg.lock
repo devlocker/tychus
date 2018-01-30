@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/devlocker/devproxy"
   packages = ["devproxy"]
-  revision = "9492883c201c9b27979e7c8c64994add763d74d0"
-  version = "0.2.1"
+  revision = "c5444b29b6e6db1308ed9ad4b175b0303ffd5737"
+  version = "0.2.2"
 
 [[projects]]
   name = "github.com/fatih/color"
@@ -38,10 +38,10 @@
   version = "v0.0.3"
 
 [[projects]]
+  branch = "master"
   name = "github.com/spf13/cobra"
   packages = ["."]
-  revision = "7b2c5ac9fc04fc5efafb60700713d4fa609b777b"
-  version = "v0.0.1"
+  revision = "f91529fc609202eededff4de2dc0ba2f662240a3"
 
 [[projects]]
   name = "github.com/spf13/pflag"
@@ -55,15 +55,9 @@
   packages = ["unix"]
   revision = "ff2a66f350cefa5c93a634eadb5d25bb60c85a9c"
 
-[[projects]]
-  branch = "v2"
-  name = "gopkg.in/yaml.v2"
-  packages = ["."]
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
-
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e595b55d436a5778bcf05f96420141d3d8dd9b2123864f3469dd7896c3699de9"
+  inputs-digest = "c5a9fb7c0f7c220499ac2425585aaa1b366e40e74c38e14eb5d9211db31dc61f"
   solver-name = "gps-cdcl"
   solver-version = 1
