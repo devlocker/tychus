@@ -133,7 +133,7 @@ tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my
 ## Whats the point of the proxy?
 Consider the following situations:
 
-1. Your server takes ~ 5 seconds to start accepting requests.
+**1. There is a gap between program starting and server accepting requests.**
 
 ```ruby
 # myapp.rb
@@ -155,7 +155,7 @@ the server is actually ready to accept and send you back a response. So save,
 alt+tab to browser hit refresh. Page will wait the 5 seconds until the server is
 ready. Then it will forward the request.
 
-2. You're code has a compile step.
+**2. Your code has a compile step.**
 
 While your code is still compiling you alt+tab to the browser and hit refresh...
 and you are potentially served old code. Avoid that by going through a proxy.
