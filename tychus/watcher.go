@@ -99,7 +99,7 @@ func (w *watcher) shouldSkipDir(path string, c *Configuration) bool {
 		return true
 	}
 
-	for _, f := range c.Watch.Ignore {
+	for _, f := range c.Ignore {
 		f = strings.TrimSpace(f)
 		f = strings.TrimRight(f, "/")
 
@@ -115,7 +115,7 @@ func (w *watcher) shouldSkipDir(path string, c *Configuration) bool {
 func (w *watcher) isWatchedFile(path string, c *Configuration) bool {
 	ext := filepath.Ext(path)
 
-	for _, e := range c.Watch.Extensions {
+	for _, e := range c.Extensions {
 		if strings.TrimSpace(e) == ext {
 			return true
 		}

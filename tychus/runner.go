@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
+	"syscall"
 )
 
 type runner struct {
@@ -42,32 +42,6 @@ func (r *runner) start(c *Configuration) {
 	}
 }
 
-// Kill running process. Give it a chance to exit cleanly, otherwise kill it
-// after a certain timeout.
-func (r *runner) kill() error {
-	if r.cmd != nil && r.cmd.Process != nil {
-		done := make(chan error, 1)
-		go func() {
-			r.cmd.Wait()
-			close(done)
-		}()
-
-		r.cmd.Process.Signal(os.Interrupt)
-
-		select {
-		case <-time.After(3 * time.Second):
-			if err := r.cmd.Process.Kill(); err != nil {
-				return err
-			}
-		case <-done:
-		}
-
-		r.cmd = nil
-	}
-
-	return nil
-}
-
 // Rerun the command.
 func (r *runner) rerun() error {
 	if r.cmd != nil && r.cmd.ProcessState != nil && r.cmd.ProcessState.Exited() {
@@ -77,9 +51,13 @@ func (r *runner) rerun() error {
 	var stderr bytes.Buffer
 	mw := io.MultiWriter(&stderr, os.Stderr)
 
-	r.cmd = exec.Command(r.args[0], r.args[1:]...)
+	r.cmd = exec.Command("/bin/sh", "-c", strings.Join(r.args, " "))
 	r.cmd.Stdout = os.Stdout
 	r.cmd.Stderr = mw
+
+	// Setup a process group so when this process gets stopped, so do any child
+	// process that it may spawn.
+	r.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	err := r.cmd.Start()
 	if err != nil {
@@ -89,7 +67,31 @@ func (r *runner) rerun() error {
 	r.events <- event{info: "Restarted", op: restarted}
 
 	if err := r.cmd.Wait(); err != nil {
-		r.events <- event{info: stderr.String(), op: errored}
+		// Program errored. Only log it if it exit status is postive, as status
+		// code -1 is when the process was killed.
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			ws := exiterr.Sys().(syscall.WaitStatus)
+			if ws.ExitStatus() > 0 {
+				r.events <- event{info: stderr.String(), op: errored}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Kill the existing process
+func (r *runner) kill() error {
+	if r.cmd != nil && r.cmd.Process != nil {
+		// Kill the process group
+		pgid, err := syscall.Getpgid(r.cmd.Process.Pid)
+		if err == nil {
+			syscall.Kill(-pgid, syscall.SIGKILL)
+		}
+
+		syscall.Kill(-r.cmd.Process.Pid, syscall.SIGKILL)
+
+		r.cmd = nil
 	}
 
 	return nil

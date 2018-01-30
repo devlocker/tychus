@@ -5,126 +5,90 @@
 // Unlike other application reloaders written in Go, Tychus is language
 // agnostic. It can be used with Go, Rust, Python, Ruby, scripts, etc.
 //
-// Tychus has 3 parts to it's configuration.
-//
-// 1. Watch: configures what extensions to watch in what directories. A change
-// to a watched file will trigger an application reload.
-//
-// 2. Build: if enabled, adds a build step (compile) after a file system change
-// is detected.
-//
-// 3. Proxy: if enabled, will serve an application through a proxy. This can
-// help mitigate annoyances like reloading your web page before the app server
-// finishes booting (and getting an error page).
+// If enabled, Tychus will serve an application through a proxy. This can help
+// mitigate annoyances like reloading your web page before the app server
+// finishes booting. Or attempting to make a request after the server starts,
+// but before it is ready to accept requests.
 package tychus
 
 import (
-	"errors"
-	"path/filepath"
-	"strings"
-
 	"github.com/devlocker/devproxy/devproxy"
 )
 
-func Start(args []string, c *Configuration) error {
-	args, err := formatArgs(args, c)
-	if err != nil {
-		return err
+type Orchestrator struct {
+	config  *Configuration
+	watcher *watcher
+	runner  *runner
+	proxy   *devproxy.Proxy
+}
+
+func New(args []string, c *Configuration) *Orchestrator {
+	return &Orchestrator{
+		config:  c,
+		watcher: newWatcher(),
+		runner:  newRunner(args),
+		proxy: devproxy.New(&devproxy.Configuration{
+			AppPort:   c.AppPort,
+			ProxyPort: c.ProxyPort,
+			Timeout:   c.Timeout,
+			Logger:    c.Logger,
+		}),
+	}
+}
+
+// Starts Tychus. Any filesystem changes will cause the command passed in to be
+// rerun. To avoid orphaning processes, make sure to call Stop before exiting.
+func (o *Orchestrator) Start() error {
+	stop := make(chan error, 1)
+
+	go o.watcher.start(o.config)
+	go o.runner.start(o.config)
+
+	if o.config.ProxyEnabled {
+		go func() {
+			err := o.proxy.Start()
+			if err != nil {
+				stop <- err
+			}
+		}()
 	}
 
-	w := newWatcher()
-	b := newBuilder(c)
-	r := newRunner(args)
-	p := devproxy.New(&devproxy.Configuration{
-		AppPort:   c.Proxy.AppPort,
-		ProxyPort: c.Proxy.ProxyPort,
-		Timeout:   c.Proxy.Timeout,
-		Logger:    c.Logger,
-	})
-
-	go w.start(c)
-	go b.start(c)
-	go r.start(c)
-
-	if c.Proxy.Enabled {
-		go p.Start()
-	}
-
-	if c.Build.Enabled {
-		b.rebuild <- true
-	} else {
-		r.restart <- true
-	}
+	o.runner.restart <- true
 
 	for {
 		select {
-		// Watcher events
-		case event := <-w.events:
-			c.Logger.Debug(event)
+		case event := <-o.watcher.events:
+			o.config.Logger.Debug(event)
 			switch event.op {
 			case changed:
-				if c.Build.Enabled {
-					p.Command <- devproxy.Command{Cmd: devproxy.Pause}
-					b.rebuild <- true
-				} else {
-					r.restart <- true
+				o.proxy.Command <- devproxy.Command{
+					Cmd: devproxy.Pause,
+				}
+				o.runner.restart <- true
+			}
+
+		case event := <-o.runner.events:
+			o.config.Logger.Debug(event)
+			switch event.op {
+			case restarted:
+				o.proxy.Command <- devproxy.Command{
+					Cmd: devproxy.Serve,
+				}
+			case errored:
+				o.proxy.Command <- devproxy.Command{
+					Cmd:  devproxy.Error,
+					Data: event.info,
 				}
 			}
 
-		// Builder events
-		case event := <-b.events:
-			c.Logger.Debug(event)
-			switch event.op {
-			case rebuilt:
-				c.Logger.Success("Build: Successful")
-				r.restart <- true
-			case errored:
-				c.Logger.Error("Build: Failed\n" + event.info)
-				p.Command <- devproxy.Command{Cmd: devproxy.Error, Data: event.info}
-			}
-
-		// Runner events
-		case event := <-r.events:
-			c.Logger.Debug(event)
-			switch event.op {
-			case restarted:
-				p.Command <- devproxy.Command{Cmd: devproxy.Serve}
-			case errored:
-				p.Command <- devproxy.Command{Cmd: devproxy.Error, Data: event.info}
-			}
+		case err := <-stop:
+			o.Stop()
+			return err
 		}
 	}
 }
 
-// Format arguments to take into account any build targets, bin names. And make
-// sure to expand any quotes strings.
-func formatArgs(args []string, c *Configuration) ([]string, error) {
-	if c.Build.Enabled {
-		binPath, err := filepath.Abs(
-			filepath.Join(
-				c.Build.TargetPath,
-				c.Build.BinName,
-			),
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		args = append([]string{binPath}, args...)
-	}
-
-	// Can occur when running with build disabled. Since no binary to run, need
-	// some command to run, e.g. "ruby myapp.rb"
-	if len(args) < 1 {
-		return nil, errors.New("Not enough arguments")
-	}
-
-	// Expand quoted strings - split by whitespace:
-	// []string{"ls -al"} => []string{"ls", "-al"}.
-	for i, a := range args {
-		args = append(args[:i], append(strings.Fields(a), args[i+1:]...)...)
-	}
-
-	return args, nil
+// Stops Tychus and forces any processes started by it that may be running.
+func (o *Orchestrator) Stop() error {
+	return o.runner.kill()
 }
