@@ -129,3 +129,41 @@ tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my
 
 tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my-bin some args -e development" -a 5000 -p 8080 -w .go -x tmp,vendor -t 5
 ```
+
+## Whats the point of the proxy?
+Consider the following situations:
+
+1. Your server takes ~ 5 seconds to start accepting requests.
+
+```ruby
+# myapp.rb
+sleep 5
+require "sinatra"
+
+get "/"
+  "Hello World"
+end
+```
+
+After your application restarts, any requests that get sent to it within 5
+seconds will return an error / show you the "Site can't be reached page".
+
+Really puts a damper on the save, alt+tab, refresh workflow.
+
+By going through the proxy, when you hit refresh, your request will wait until
+the server is actually ready to accept and send you back a response. So save,
+alt+tab to browser hit refresh. Page will wait the 5 seconds until the server is
+ready. Then it will forward the request.
+
+2. You're code has a compile step.
+
+While your code is still compiling you alt+tab to the browser and hit refresh...
+and you are potentially served old code. Avoid that by going through a proxy.
+
+**Other Proxy Goodies**
+
+**Error messages**
+
+If you make a syntax error, or your program won't build for some reason, the
+output will be displayed in the webpage. Handy for the times you can't see you
+server (its in another pane / tab / tmux split).
