@@ -3,17 +3,14 @@ package tychus
 import (
 	"log"
 	"os"
-
-	"github.com/fatih/color"
 )
 
 type Logger interface {
 	Debug(interface{})
 	Debugf(string, ...interface{})
-	Error(string)
 	Fatal(...interface{})
 	Printf(string, ...interface{})
-	Success(string)
+	Print(...interface{})
 }
 
 func NewLogger(debug bool) Logger {
@@ -40,12 +37,4 @@ func (l *logger) Debugf(format string, args ...interface{}) {
 	if l.debug {
 		l.Printf("DEBUG: "+format, args...)
 	}
-}
-
-func (l *logger) Error(msg string) {
-	l.Print(color.RedString(msg))
-}
-
-func (l *logger) Success(msg string) {
-	l.Print(color.GreenString(msg))
 }

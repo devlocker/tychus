@@ -31,76 +31,101 @@ go get github.com/devlocker/tychus
 ### Windows
 Currently isn't supported :(
 
-## Getting Started
-You will need to create a `.tychus.yml` file configuration file. Easiest way is
-to generate one is with:
-
-```
-$ tychus init
-```
-
-Double check your generated `.tychus.yml` config to make sure it knows which
-file extensions to watch.
-
 ## Usage
 
-Usage is simple, `tychus run` and then your command. On a filesystem change that
+Usage is simple, `tychus` and then your command. On a filesystem change that
 command will be rerun.
 
 ```
 // Go
-tychus run go run main.go
+tychus go run main.go
 
 // Rust
-tychus run cargo run
+tychus cargo run
 
 // Ruby
 tychus ruby myapp.rb
 
 // Shell Commands
-tychus run ls
+tychus ls
 ```
 
 Need to pass flags? Stick the command in quotes
 
 ```
-tychus run "ruby myapp.rb -e development"
+tychus "ruby myapp.rb -e development"
 ```
 
 Complicated command? Stick it in quotes
 
 ```
-tychus run "go build -o my-bin && echo 'Built Binary' && ./my-bin"
+tychus "go build -o my-bin && echo 'Built Binary' && ./my-bin"
 ```
 
 
-## Configuration
+## Options
+Tychus has a few options. In most cases the defaults should be sufficient. See
+below for a few examples.
 
 ```yaml
-# List of extentions to watch. A change to a file with one of these extensions
-# will trigger a fresh of your application.
-extensions:
-- .go
+  -a, --app-port int         port your application runs on, overwritten by ENV['PORT'] (default 3000)
+  -p, --proxy-port int       proxy port (default 4000)
+  -w, --watch stringSlice    comma separated list of extensions that will trigger a reload. If not set, will reload on any file change.
+  -x, --ignore stringSlice   comma separated list of directories to ignore file changes in. (default [node_modules,log,tmp,vendor])
+  -t, --timeout int          timeout for proxied requests (default 10)
 
-# List of folders to not watch. Too many watched files / folders can slow things
-down, so try and ignore as much as possible.
-ignore:
-- node_modules
-- tmp
-- log
-- vendor
+  -h, --help                 help for tychus
+      --debug                print debug output
+      --no-proxy             will not start proxy if set
+      --version              version for tychus
+```
 
-# If not enabled, proxy will not start.
-proxy_enabled: true
+Note: If you do not specify any file extensions in `--watch`, Tychus will
+trigger a reload on any file change, except for files inside directories listed
+in `--ignore`
 
-# Port proxy runs on.
-proxy_port: 4000
+Note: Tychus will not watch any hidden directories (those beginning with `.`).
 
-# Port your application runs on. NOTE: a PORT environment will take overwrite
-# whatever you put here.
-app_port: 3000
+## Examples
 
-# In seconds, how long the proxy will attempt to proxy a request until it
-# gives up and returns a 502.
-timeout: 10
+### Sinatra
+By default, Sinatra runs on port `4567`. Only want to watch `ruby` and
+`erb` files. Default ignore list is sufficient. The following are equivalent.
+
+```
+tychus ruby myapp.rb -w .rb,.erb -a 4567
+tychus ruby myapp.rb --watch=.rb,.erb --app-port=4567
+```
+
+Visit http://localhost:4000 (4000 is the default proxy host) and to view your
+app.
+
+
+### Foreman / Procfile
+Similar to the previous example, except this time running inside of
+[foreman](https://github.com/ddollar/foreman) (or someother Procfile runner).
+
+```
+# Procfile
+web: tychus "rackup -p $PORT -s puma" -w rb,erb
+```
+
+Note: If you need to pass flags to your command (like `-p` & `-s` in this case),
+wrap your entire command in quotes.
+
+We don't need to explicitly add a `-a $PORT` flag, because `tychus` will
+automatically pick up the $PORT and automatically set `app-port` for you.
+
+
+### Kitchen Sink Example
+Running a Go program, separate build and run steps, with some logging thrown in,
+only watching `.go` files, running a server on port `5000`, running proxy on
+`8080`, ignoring just `tmp` and `vendor`, with a timeout of 5 seconds.
+
+```
+tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my-bin some args -e development" --app-port=5000 --proxy-port=8080 --watch=.go --ignore=tmp,vendor --timeout=5
+
+# Or, using short flags
+
+tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my-bin some args -e development" -a 5000 -p 8080 -w .go -x tmp,vendor -t 5
 ```

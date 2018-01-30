@@ -68,7 +68,7 @@ func (r *runner) rerun() error {
 
 	if err := r.cmd.Wait(); err != nil {
 		// Program errored. Only log it if it exit status is postive, as status
-		// code -1 is when the process was killed.
+		// code -1 is returned when the process was killed by kill().
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			ws := exiterr.Sys().(syscall.WaitStatus)
 			if ws.ExitStatus() > 0 {
@@ -80,12 +80,10 @@ func (r *runner) rerun() error {
 	return nil
 }
 
-// Kill the existing process
+// Kill the existing process & process group
 func (r *runner) kill() error {
 	if r.cmd != nil && r.cmd.Process != nil {
-		// Kill the process group
-		pgid, err := syscall.Getpgid(r.cmd.Process.Pid)
-		if err == nil {
+		if pgid, err := syscall.Getpgid(r.cmd.Process.Pid); err == nil {
 			syscall.Kill(-pgid, syscall.SIGKILL)
 		}
 

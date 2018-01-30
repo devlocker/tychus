@@ -113,10 +113,13 @@ func (w *watcher) shouldSkipDir(path string, c *Configuration) bool {
 
 // Checks to see if path matches a configured extension.
 func (w *watcher) isWatchedFile(path string, c *Configuration) bool {
-	ext := filepath.Ext(path)
+	if len(c.Extensions) == 0 {
+		return true
+	}
 
+	ext := filepath.Ext(path)
 	for _, e := range c.Extensions {
-		if strings.TrimSpace(e) == ext {
+		if e == ext {
 			return true
 		}
 	}
