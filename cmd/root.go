@@ -20,27 +20,15 @@ var ignored []string
 var noProxy bool
 var proxyPort int
 var timeout int
-var watch []string
+var wait bool
 
 var rootCmd = &cobra.Command{
 	Use:   "tychus",
-	Short: "Starts and reloads your application as you make changes to source files.",
-	Long: `tychus is a command line utility to live-reload your application. tychus will
-watch your filesystem for changes and automatically recompile and restart code
-on change.
-
-Example:
-  tychus go run main.go -w .go
-  tychus ruby myapp.rb --app-port=4567 --proxy-port=4000 --watch .rb,.erb --ignore node_modules
-
-Example: No Proxy
-  tychus ls --no-proxy
-
-Example: Flags - use quotes
-  tychus "ruby myapp.rb -p 5000 -e development" -a 5000 -p 4000 -w .rb,.erb
-
-Example: Multiple Commands - use quotes
-  tychus "go build -o my-bin && echo 'Done Building' && ./my-bin"
+	Short: "Live reload utility + proxy",
+	Long: `Tychus is a command line utility for live reloading applications.
+Tychus serves your application through a proxy. Anytime the proxy receives
+an HTTP request will automatically rerun your command if the filesystem has
+changed.
 	`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -63,7 +51,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&noProxy, "no-proxy", false, "will not start proxy if set")
 	rootCmd.Flags().IntVarP(&proxyPort, "proxy-port", "p", 4000, "proxy port")
 	rootCmd.Flags().IntVarP(&timeout, "timeout", "t", 10, "timeout for proxied requests")
-	rootCmd.Flags().StringSliceVarP(&watch, "watch", "w", []string{}, "comma separated list of extensions that will trigger a reload. If not set, will reload on any file change.")
+	rootCmd.Flags().BoolVar(&wait, "wait", false, "Wait for command to finish before proxying a request")
 }
 
 func start(args []string) {
@@ -79,16 +67,6 @@ func start(args []string) {
 		syscall.SIGQUIT,
 	)
 
-	// Clean up watched file extensions
-	for i, ext := range watch {
-		ext = strings.TrimSpace(ext)
-		if !strings.HasPrefix(ext, ".") {
-			ext = "." + ext
-		}
-
-		watch[i] = ext
-	}
-
 	// If PORT is set, use that instead of AppPort. For things like foreman
 	// where ports are automatically assigned.
 	envPort, ok := os.LookupEnv("PORT")
@@ -98,15 +76,20 @@ func start(args []string) {
 		}
 	}
 
+	// Clean up ignored dirs.
+	for i, dir := range ignored {
+		ignored[i] = strings.TrimRight(strings.TrimSpace(dir), "/")
+	}
+
 	// Create a configuration
 	c := &tychus.Configuration{
-		Extensions:   watch,
 		Ignore:       ignored,
 		ProxyEnabled: !noProxy,
 		ProxyPort:    proxyPort,
 		AppPort:      appPort,
 		Timeout:      timeout,
 		Logger:       tychus.NewLogger(debug),
+		Wait:         wait,
 	}
 
 	// Run tychus

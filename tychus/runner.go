@@ -15,6 +15,7 @@ type runner struct {
 	cmd     *exec.Cmd
 	events  chan event
 	restart chan bool
+	stderr  *bytes.Buffer
 }
 
 func newRunner(args []string) *runner {
@@ -29,20 +30,28 @@ func (r *runner) start(c *Configuration) {
 	for {
 		<-r.restart
 
-		if err := r.kill(); err != nil {
+		// Kill previous running process
+		r.kill()
+
+		// Start command
+		if err := r.rerun(); err != nil {
 			r.events <- event{op: errored, info: err.Error()}
+			continue
 		}
 
-		go func() {
-			c.Logger.Debugf("Running: %v", strings.Join(r.args, " "))
-			if err := r.rerun(); err != nil {
-				r.events <- event{op: errored, info: err.Error()}
-			}
-		}()
+		// If configured to wait, block until command finishes. Otherwise, wait
+		// in the background.
+		if c.Wait {
+			r.wait()
+		} else {
+			go r.wait()
+		}
+
+		// Let Orchestrator know process has been restarted.
+		r.events <- event{info: "Restarted", op: restarted}
 	}
 }
 
-// Rerun the command.
 func (r *runner) rerun() error {
 	if r.cmd != nil && r.cmd.ProcessState != nil && r.cmd.ProcessState.Exited() {
 		return nil
@@ -50,6 +59,7 @@ func (r *runner) rerun() error {
 
 	var stderr bytes.Buffer
 	mw := io.MultiWriter(&stderr, os.Stderr)
+	r.stderr = &stderr
 
 	r.cmd = exec.Command("/bin/sh", "-c", strings.Join(r.args, " "))
 	r.cmd.Stdout = os.Stdout
@@ -64,24 +74,27 @@ func (r *runner) rerun() error {
 		return errors.New(stderr.String())
 	}
 
-	r.events <- event{info: "Restarted", op: restarted}
-
-	if err := r.cmd.Wait(); err != nil {
-		// Program errored. Only log it if it exit status is postive, as status
-		// code -1 is returned when the process was killed by kill().
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			ws := exiterr.Sys().(syscall.WaitStatus)
-			if ws.ExitStatus() > 0 {
-				r.events <- event{info: stderr.String(), op: errored}
-			}
-		}
-	}
-
 	return nil
 }
 
+// Wait for the command to finish. If the process exits with an error, only log
+// it if it exit status is postive, as status code -1 is returned when the
+// process was killed by kill().
+func (r *runner) wait() {
+	err := r.cmd.Wait()
+
+	if err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			ws := exiterr.Sys().(syscall.WaitStatus)
+			if ws.ExitStatus() > 0 {
+				r.events <- event{op: errored, info: r.stderr.String()}
+			}
+		}
+	}
+}
+
 // Kill the existing process & process group
-func (r *runner) kill() error {
+func (r *runner) kill() {
 	if r.cmd != nil && r.cmd.Process != nil {
 		if pgid, err := syscall.Getpgid(r.cmd.Process.Pid); err == nil {
 			syscall.Kill(-pgid, syscall.SIGKILL)
@@ -91,6 +104,4 @@ func (r *runner) kill() error {
 
 		r.cmd = nil
 	}
-
-	return nil
 }

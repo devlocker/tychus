@@ -12,16 +12,14 @@
 package tychus
 
 import (
-	"strings"
-
-	"github.com/devlocker/devproxy/devproxy"
+	"time"
 )
 
 type Orchestrator struct {
 	config  *Configuration
 	watcher *watcher
 	runner  *runner
-	proxy   *devproxy.Proxy
+	proxy   *proxy
 }
 
 func New(args []string, c *Configuration) *Orchestrator {
@@ -29,62 +27,74 @@ func New(args []string, c *Configuration) *Orchestrator {
 		config:  c,
 		watcher: newWatcher(),
 		runner:  newRunner(args),
-		proxy: devproxy.New(&devproxy.Configuration{
-			AppPort:   c.AppPort,
-			ProxyPort: c.ProxyPort,
-			Timeout:   c.Timeout,
-			Logger:    c.Logger,
-		}),
+		proxy:   newProxy(c),
 	}
 }
 
-// Starts Tychus. Any filesystem changes will cause the command passed in to be
-// rerun. To avoid orphaning processes, make sure to call Stop before exiting.
 func (o *Orchestrator) Start() error {
-	o.printStartMessage()
-
 	stop := make(chan error, 1)
+
+	go func() {
+		err := o.proxy.start()
+		if err != nil {
+			stop <- err
+		}
+	}()
 
 	go o.watcher.start(o.config)
 	go o.runner.start(o.config)
-
-	if o.config.ProxyEnabled {
-		go func() {
-			err := o.proxy.Start()
-			if err != nil {
-				stop <- err
-			}
-		}()
-	}
 
 	o.runner.restart <- true
 
 	for {
 		select {
+
+		// Proxy events: If a request comes in, pause the websever and start
+		// scanning for changes. Unless the last time a command ran it errored.
+		// In which case just rerun the command regardless of whether or not
+		// the FS has been changed.
+		case event := <-o.proxy.events:
+			o.config.Logger.Debug(event)
+
+			switch event.op {
+			case requested:
+				if o.proxy.mode == mode_errored {
+					o.runner.restart <- true
+				} else {
+					o.watcher.scan <- true
+				}
+
+				o.proxy.pause()
+			}
+
+		// Watcher events: If FS has changed since the last time the watcher
+		// checked, go ahead and trigger a restart. Otherwise, unpause the
+		// proxy.
 		case event := <-o.watcher.events:
 			o.config.Logger.Debug(event)
+
 			switch event.op {
 			case changed:
-				o.proxy.Command <- devproxy.Command{
-					Cmd: devproxy.Pause,
-				}
 				o.runner.restart <- true
+			case unchanged:
+				o.proxy.serve()
 			}
 
+		// Runner events. If restart successful, go ahead an unpause the proxy.
+		// If the command exited with an error code, have the proxy display the
+		// error message.
 		case event := <-o.runner.events:
 			o.config.Logger.Debug(event)
+
 			switch event.op {
 			case restarted:
-				o.proxy.Command <- devproxy.Command{
-					Cmd: devproxy.Serve,
-				}
+				o.watcher.lastRun = time.Now()
+				o.proxy.serve()
 			case errored:
-				o.proxy.Command <- devproxy.Command{
-					Cmd:  devproxy.Error,
-					Data: event.info,
-				}
+				o.proxy.error(event.info)
 			}
 
+		// Stop Tychus
 		case err := <-stop:
 			o.Stop()
 			return err
@@ -93,19 +103,6 @@ func (o *Orchestrator) Start() error {
 }
 
 // Stops Tychus and forces any processes started by it that may be running.
-func (o *Orchestrator) Stop() error {
-	return o.runner.kill()
-}
-
-func (o *Orchestrator) printStartMessage() {
-	exts := o.config.Extensions
-	if len(exts) == 0 {
-		exts = []string{"all"}
-	}
-
-	o.config.Logger.Printf(
-		"Starting: watching extensions: [%v], ignoring dirs: [%v]",
-		strings.Join(exts, ", "),
-		strings.Join(o.config.Ignore, ", "),
-	)
+func (o *Orchestrator) Stop() {
+	o.runner.kill()
 }

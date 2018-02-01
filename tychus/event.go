@@ -10,6 +10,8 @@ const (
 	rebuilt
 	changed
 	errored
+	requested
+	unchanged
 )
 
 type event struct {
