@@ -5,7 +5,7 @@ builds:
       - linux
     goarch:
       - amd64
-    ldflags: -s -w -X github.com/devlocker/tychus/cmd.version={{.Version}}
+    ldflags: -s -w
 
 brew:
   github:
