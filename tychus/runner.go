@@ -29,11 +29,24 @@ func newRunner(c *Configuration, args []string) *runner {
 func (r *runner) run() error {
 	r.kill()
 
+	if err := r.execute(); err != nil {
+		return err
+	}
+
+	if r.config.Wait {
+		r.wait()
+	} else {
+		go r.wait()
+	}
+
+	return nil
+}
+
+func (r *runner) execute() error {
 	if r.cmd != nil && r.cmd.ProcessState != nil && r.cmd.ProcessState.Exited() {
 		return nil
 	}
 
-	var stderr bytes.Buffer
 	r.stderr = &bytes.Buffer{}
 	mw := io.MultiWriter(r.stderr, os.Stderr)
 
@@ -45,15 +58,8 @@ func (r *runner) run() error {
 	// process that it may spawn.
 	r.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	err := r.cmd.Start()
-	if err != nil {
-		return errors.New(stderr.String())
-	}
-
-	if r.config.Wait {
-		r.wait()
-	} else {
-		go r.wait()
+	if err := r.cmd.Start(); err != nil {
+		return errors.New(r.stderr.String())
 	}
 
 	return nil
