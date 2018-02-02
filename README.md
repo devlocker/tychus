@@ -1,15 +1,12 @@
 tychus
 ========
 
-`tychus` is a command line utility to live-reload your application. `tychus`
-will watch your filesystem for changes and automatically recompile and restart
-code on change.
+Tychus is a command line utility for live reloading applications. Tychus serves
+your application through a proxy. Anytime the proxy receives an HTTP request, it
+will automatically rerun your command if the filesystem has changed.
 
 `tychus` is language agnostic - it can be configured to work with just about
-anything: Go, Rust, Ruby, Python, etc.
-
-Should you desire you can use `tychus` as a proxy to your application. It will
-pause requests while your application rebuilds & restarts.
+anything: Go, Rust, Ruby, Python, scripts & arbitrary commands.
 
 
 ## Installation
@@ -33,21 +30,64 @@ Currently isn't supported :(
 
 ## Usage
 
-Usage is simple, `tychus` and then your command. On a filesystem change that
+Usage is simple, `tychus` and then your command. That will start a proxy on port
+`4000`. When an HTTP request comes in and the filesystem has changed, your
 command will be rerun.
 
 ```
-// Go
 tychus go run main.go
+```
 
+## Options
+Tychus has a few options. In most cases the defaults should be sufficient. See
+below for a few examples.
+
+```yaml
+  -a, --app-port int         port your application runs on, overwritten by ENV['PORT'] (default 3000)
+  -p, --proxy-port int       proxy port (default 4000)
+  -x, --ignore stringSlice   comma separated list of directories to ignore file changes in. (default [node_modules,log,tmp,vendor])
+      --wait                 Wait for command to finish before proxying a request.
+  -t, --timeout int          timeout for proxied requests (default 10)
+
+
+  -h, --help                 help for tychus
+      --debug                print debug output
+      --version              version for tychus
+```
+
+Note: Tychus will not look for file system changes any hidden directories
+(those beginning with `.`).
+
+## Examples
+
+**Example: Web Servers**
+
+```
+// Go - Hello World Server
+$ tychus go run main.go
+[tychus] Proxing requests on port 4000 to 3000
+[Go App] App Starting
+
+// Make a request
+$ curl localhost:4000
+Hello World
+$ curl localhost:4000
+Hello World
+
+// Save a file, next request will restart your webapp
+$ curl localhost:4000
+[Go App] App Starting
+Hello World
+```
+
+This can work with any webserver:
+
+```
 // Rust
 tychus cargo run
 
 // Ruby
 tychus ruby myapp.rb
-
-// Shell Commands
-tychus ls
 ```
 
 Need to pass flags? Stick the command in quotes
@@ -62,108 +102,64 @@ Complicated command? Stick it in quotes
 tychus "go build -o my-bin && echo 'Built Binary' && ./my-bin"
 ```
 
+**Example: Scripts + Commands**
 
-## Options
-Tychus has a few options. In most cases the defaults should be sufficient. See
-below for a few examples.
-
-```yaml
-  -a, --app-port int         port your application runs on, overwritten by ENV['PORT'] (default 3000)
-  -p, --proxy-port int       proxy port (default 4000)
-  -w, --watch stringSlice    comma separated list of extensions that will trigger a reload. If not set, will reload on any file change.
-  -x, --ignore stringSlice   comma separated list of directories to ignore file changes in. (default [node_modules,log,tmp,vendor])
-  -t, --timeout int          timeout for proxied requests (default 10)
-
-  -h, --help                 help for tychus
-      --debug                print debug output
-      --no-proxy             will not start proxy if set
-      --version              version for tychus
-```
-
-Note: If you do not specify any file extensions in `--watch`, Tychus will
-trigger a reload on any file change, except for files inside directories listed
-in `--ignore`
-
-Note: Tychus will not watch any hidden directories (those beginning with `.`).
-
-## Examples
-
-### Sinatra
-By default, Sinatra runs on port `4567`. Only want to watch `ruby` and
-`erb` files. Default ignore list is sufficient. The following are equivalent.
+Scenario: You have a webserver running on port `3005`, and it serves static
+files from the `/public` directory. In the `/docs` folder are some markdown
+files. Should they change, you want them rebuilt and placed into the `public`
+directory so the server can pick them up.
 
 ```
-tychus ruby myapp.rb -w .rb,.erb -a 4567
-tychus ruby myapp.rb --watch=.rb,.erb --app-port=4567
+tychus "multimarkdown docs/index.md > public/index.html" --wait --app-port=3005
 ```
 
-Visit http://localhost:4000 (4000 is the default proxy host) and to view your
-app.
+Now, when you make a request to the proxy on `localhost:4000`, `tychus` will
+pause the request (that's what the `--wait` flag is for) until `multimarkdown`
+finishes. Then it will forward the request to the server on port `3005`.
+`multimarkdown` will only be run if the filesystem has changed.
 
 
-### Foreman / Procfile
-Similar to the previous example, except this time running inside of
-[foreman](https://github.com/ddollar/foreman) (or someother Procfile runner).
+**Advanced Example: Reload Scripts and Webserver**
 
-```
-# Procfile
-web: tychus "rackup -p $PORT -s puma" -w rb,erb
-```
+Like the scenario above, but you also want your server to autoreload as files
+change. You can chain `tychus` together, by setting the `app-port` equal to the
+`proxy-port` of the previous `tychus`. An example:
 
-Note: If you need to pass flags to your command (like `-p` & `-s` in this case),
-wrap your entire command in quotes.
-
-We don't need to explicitly add a `-a $PORT` flag, because `tychus` will
-automatically pick up the $PORT and automatically set `app-port` for you.
-
-
-### Kitchen Sink Example
-Running a Go program, separate build and run steps, with some logging thrown in,
-only watching `.go` files, running a server on port `5000`, running proxy on
-`8080`, ignoring just `tmp` and `vendor`, with a timeout of 5 seconds.
+The first instance of `tychus` will run a Go webserver that serves assets out of
+`public/`.  We only want it to restart when the `app` folder changes, so ignore
+`docs` and `public` directories.
 
 ```
-tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my-bin some args -e development" --app-port=5000 --proxy-port=8080 --watch=.go --ignore=tmp,vendor --timeout=5
+$ tychus go run main.go --app-port=3000 --proxy-port=4000 --ignore=docs,public
 
-# Or, using short flags
-
-tychus "echo 'Building...' && go build -o tmp/my-bin && echo 'Built' && ./tmp/my-bin some args -e development" -a 5000 -p 8080 -w .go -x tmp,vendor -t 5
+[tychus] Proxing requests on port 4000 to 3000
+...
+...
 ```
 
-## Whats the point of the proxy?
-Consider the following situations:
+In order to serve upto date docs, `multimarkdown` needs to be invoked to
+transform markdown into servable html. So we start another `tychus` process to
+and point its app-port to server's proxy port.
 
-**1. There is a gap between program starting and server accepting requests.**
-
-```ruby
-# myapp.rb
-sleep 5
-require "sinatra"
-
-get "/"
-  "Hello World"
-end
+```
+$ tychus "multimarkdown docs/index.md > public/index.html" --wait --app-port=4000 --proxy-port=4001
 ```
 
-After your application restarts, any requests that get sent to it within 5
-seconds will return an error / show you the "Site can't be reached page".
+Now, there is a proxy running on `4001` pointing at a proxy on `4000` pointing
+at a webserver on `3000`. If you save `docs/index.html`, and then make a request
+to `localhost:4001`, that will pause the request while `multimarkdown` runs.
+Once it is finished, the requests gets forwarded to `localhost:4000`, which in
+turn forwards it our websever on `3000`. The request gets sent all the way back,
+with the correctly updated html!
 
-Really puts a damper on the save, alt+tab, refresh workflow.
-
-By going through the proxy, when you hit refresh, your request will wait until
-the server is actually ready to accept and send you back a response. So save,
-alt+tab to browser hit refresh. Page will wait the 5 seconds until the server is
-ready. Then it will forward the request.
-
-**2. Your code has a compile step.**
-
-While your code is still compiling you alt+tab to the browser and hit refresh...
-and you are potentially served old code. Avoid that by going through a proxy.
+Had our server code been modified in the `app/` folder, then after
+`multimarkdown` finished, and the request got passed on to `4000`, that would
+have also triggered a restart of our websever.
 
 **Other Proxy Goodies**
 
 **Error messages**
 
-If you make a syntax error, or your program won't build for some reason, the
-output will be displayed in the webpage. Handy for the times you can't see you
-server (its in another pane / tab / tmux split).
+If you make a syntax error, or your program won't build for some reason, stderr
+will be returned by the proxy. Handy for the times you can't see you server (its
+in another pane / tab / tmux split).
