@@ -62,8 +62,6 @@ func (p *proxy) start() error {
 		strconv.Itoa(p.config.AppPort),
 	)
 
-	p.serve()
-
 	err = server.Serve(listener)
 	if err != nil {
 		return err

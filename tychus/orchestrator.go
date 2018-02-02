@@ -48,9 +48,10 @@ func (o *Orchestrator) Start() error {
 			o.config.Logger.Debug("Request started")
 
 			modified := o.watcher.scan()
-			if modified {
-				err := o.runner.run()
-				if err != nil {
+			if modified || o.proxy.mode == mode_errored {
+				o.config.Logger.Debug("Rerunnning")
+
+				if err := o.runner.run(); err != nil {
 					o.proxy.error(err)
 					continue
 				}
