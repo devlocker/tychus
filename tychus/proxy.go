@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"time"
 )
 
@@ -56,11 +55,7 @@ func (p *proxy) start() error {
 	}
 	defer listener.Close()
 
-	p.config.Logger.Printf(
-		"Proxing requests on port %v to %v",
-		strconv.Itoa(p.config.ProxyPort),
-		strconv.Itoa(p.config.AppPort),
-	)
+	p.config.Logger.Printf("Proxing requests on port %v to %v", p.config.ProxyPort, p.config.AppPort)
 
 	err = server.Serve(listener)
 	if err != nil {
