@@ -11,55 +11,31 @@ import (
 )
 
 type runner struct {
-	args    []string
-	cmd     *exec.Cmd
-	events  chan event
-	restart chan bool
-	stderr  *bytes.Buffer
+	args   []string
+	cmd    *exec.Cmd
+	errors chan error
+	stderr *bytes.Buffer
+	config *Configuration
 }
 
-func newRunner(args []string) *runner {
+func newRunner(c *Configuration, args []string) *runner {
 	return &runner{
-		args:    args,
-		events:  make(chan event),
-		restart: make(chan bool),
+		args:   args,
+		config: c,
+		errors: make(chan error),
 	}
 }
 
-func (r *runner) start(c *Configuration) {
-	for {
-		<-r.restart
+func (r *runner) run() error {
+	r.kill()
 
-		// Kill previous running process
-		r.kill()
-
-		// Start command
-		if err := r.rerun(); err != nil {
-			r.events <- event{op: errored, info: err.Error()}
-			continue
-		}
-
-		// If configured to wait, block until command finishes. Otherwise, wait
-		// in the background.
-		if c.Wait {
-			r.wait()
-		} else {
-			go r.wait()
-		}
-
-		// Let Orchestrator know process has been restarted.
-		r.events <- event{info: "Restarted", op: restarted}
-	}
-}
-
-func (r *runner) rerun() error {
 	if r.cmd != nil && r.cmd.ProcessState != nil && r.cmd.ProcessState.Exited() {
 		return nil
 	}
 
 	var stderr bytes.Buffer
-	mw := io.MultiWriter(&stderr, os.Stderr)
-	r.stderr = &stderr
+	r.stderr = &bytes.Buffer{}
+	mw := io.MultiWriter(r.stderr, os.Stderr)
 
 	r.cmd = exec.Command("/bin/sh", "-c", strings.Join(r.args, " "))
 	r.cmd.Stdout = os.Stdout
@@ -74,12 +50,18 @@ func (r *runner) rerun() error {
 		return errors.New(stderr.String())
 	}
 
+	if r.config.Wait {
+		r.wait()
+	} else {
+		go r.wait()
+	}
+
 	return nil
 }
 
 // Wait for the command to finish. If the process exits with an error, only log
 // it if it exit status is postive, as status code -1 is returned when the
-// process was killed by kill().
+// process was killed by runner#kill.
 func (r *runner) wait() {
 	err := r.cmd.Wait()
 
@@ -87,7 +69,7 @@ func (r *runner) wait() {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			ws := exiterr.Sys().(syscall.WaitStatus)
 			if ws.ExitStatus() > 0 {
-				r.events <- event{op: errored, info: r.stderr.String()}
+				r.errors <- errors.New(r.stderr.String())
 			}
 		}
 	}

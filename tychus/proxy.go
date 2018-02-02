@@ -16,7 +16,6 @@ type mode uint32
 
 const (
 	mode_errored mode = 1 << iota
-	mode_paused
 	mode_serving
 )
 
@@ -24,7 +23,7 @@ type proxy struct {
 	config   *Configuration
 	errorStr string
 	mode     mode
-	events   chan event
+	requests chan bool
 	revproxy *httputil.ReverseProxy
 }
 
@@ -41,8 +40,8 @@ func newProxy(c *Configuration) *proxy {
 	p := &proxy{
 		config:   c,
 		revproxy: revproxy,
-		mode:     mode_paused,
-		events:   make(chan event),
+		mode:     mode_serving,
+		requests: make(chan bool),
 	}
 
 	return p
@@ -74,29 +73,17 @@ func (p *proxy) start() error {
 }
 
 // Proxy the request to the application server.
-//
-// The behavior of this function depends on the mode of the proxy. While
-// serving, should the proxied request return a 502, the request will be
-// retried until a non 502 status code is returned, or the timeout specified in
-// the configuration is reached. Paused has the request wait until the server
-// either moves into serving or erroed mode, or a timeout is reached. While in
-// the errored mode, all requests will return a 500 along with some specified
-// error body.
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	p.events <- event{op: requested, info: "Incoming Request"}
+	p.requests <- true
 
 	timeout := time.After(time.Second * time.Duration(p.config.Timeout))
-	tick := time.Tick(100 * time.Millisecond)
+	tick := time.Tick(50 * time.Millisecond)
 
 	ctx := r.Context()
 
 	for {
 		select {
 		case <-tick:
-			if p.mode == mode_paused {
-				continue
-			}
-
 			if p.mode == mode_errored {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte(p.errorStr))
@@ -130,15 +117,10 @@ func (p *proxy) serve() {
 	p.mode = mode_serving
 }
 
-func (p *proxy) pause() {
-	p.config.Logger.Debug("Proxy: Paused")
-	p.mode = mode_paused
-}
-
-func (p *proxy) error(e string) {
+func (p *proxy) error(err error) {
 	p.config.Logger.Debug("Proxy: Error Mode")
 	p.mode = mode_errored
-	p.errorStr = e
+	p.errorStr = err.Error()
 }
 
 // Wrapper around http.ResponseWriter. Since the proxy works rather naively -

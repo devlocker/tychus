@@ -11,10 +11,6 @@
 // but before it is ready to accept requests.
 package tychus
 
-import (
-	"time"
-)
-
 type Orchestrator struct {
 	config  *Configuration
 	watcher *watcher
@@ -25,8 +21,8 @@ type Orchestrator struct {
 func New(args []string, c *Configuration) *Orchestrator {
 	return &Orchestrator{
 		config:  c,
-		watcher: newWatcher(),
-		runner:  newRunner(args),
+		watcher: newWatcher(c),
+		runner:  newRunner(c, args),
 		proxy:   newProxy(c),
 	}
 }
@@ -41,60 +37,31 @@ func (o *Orchestrator) Start() error {
 		}
 	}()
 
-	go o.watcher.start(o.config)
-	go o.runner.start(o.config)
-
-	o.runner.restart <- true
+	err := o.runner.run()
+	if err != nil {
+		o.proxy.error(err)
+	}
 
 	for {
 		select {
+		case <-o.proxy.requests:
+			o.config.Logger.Debug("Request started")
 
-		// Proxy events: If a request comes in, pause the websever and start
-		// scanning for changes. Unless the last time a command ran it errored.
-		// In which case just rerun the command regardless of whether or not
-		// the FS has been changed.
-		case event := <-o.proxy.events:
-			o.config.Logger.Debug(event)
-
-			switch event.op {
-			case requested:
-				if o.proxy.mode == mode_errored {
-					o.runner.restart <- true
-				} else {
-					o.watcher.scan <- true
+			modified := o.watcher.scan()
+			if modified {
+				err := o.runner.run()
+				if err != nil {
+					o.proxy.error(err)
+					continue
 				}
-
-				o.proxy.pause()
 			}
 
-		// Watcher events: If FS has changed since the last time the watcher
-		// checked, go ahead and trigger a restart. Otherwise, unpause the
-		// proxy.
-		case event := <-o.watcher.events:
-			o.config.Logger.Debug(event)
+			o.proxy.serve()
 
-			switch event.op {
-			case changed:
-				o.runner.restart <- true
-			case unchanged:
-				o.proxy.serve()
-			}
+		case err := <-o.runner.errors:
+			o.config.Logger.Debug("Runner errored")
+			o.proxy.error(err)
 
-		// Runner events. If restart successful, go ahead an unpause the proxy.
-		// If the command exited with an error code, have the proxy display the
-		// error message.
-		case event := <-o.runner.events:
-			o.config.Logger.Debug(event)
-
-			switch event.op {
-			case restarted:
-				o.watcher.lastRun = time.Now()
-				o.proxy.serve()
-			case errored:
-				o.proxy.error(event.info)
-			}
-
-		// Stop Tychus
 		case err := <-stop:
 			o.Stop()
 			return err
