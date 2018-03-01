@@ -69,6 +69,10 @@ func (p *proxy) start() error {
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.requests <- true
 
+	if ok := p.forward(w, r); ok {
+		return
+	}
+
 	timeout := time.After(time.Second * time.Duration(p.config.Timeout))
 	tick := time.Tick(50 * time.Millisecond)
 
@@ -77,18 +81,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-tick:
-			if p.mode == mode_errored {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(p.errorStr))
-				return
-			}
-
-			writer := &proxyWriter{res: w}
-			p.revproxy.ServeHTTP(writer, r)
-
-			// If the request is "successful" - as in the server responded in
-			// some way, return the response to the client.
-			if writer.status != http.StatusBadGateway {
+			if ok := p.forward(w, r); ok {
 				return
 			}
 
@@ -103,6 +96,21 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func (p *proxy) forward(w http.ResponseWriter, r *http.Request) bool {
+	if p.mode == mode_errored {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(p.errorStr))
+		return true
+	}
+
+	writer := &proxyWriter{res: w}
+	p.revproxy.ServeHTTP(writer, r)
+
+	// If the request is "successful" - as in the server responded in
+	// some way, return the response to the client.
+	return writer.status != http.StatusBadGateway
 }
 
 func (p *proxy) serve() {
