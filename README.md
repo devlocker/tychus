@@ -44,10 +44,9 @@ Tychus has a few options. In most cases the defaults should be sufficient.
 ```yaml
   -a, --app-port int         port your application runs on, overwritten by ENV['PORT'] (default 3000)
   -p, --proxy-port int       proxy port (default 4000)
-  -x, --ignore stringSlice   comma separated list of directories to ignore file changes in. (default node_modules,log,tmp,vendor)
-      --wait                 Wait for command to finish before proxying a request.
+  -x, --ignore string        comma separated list of directories to ignore file changes in. (default node_modules,log,tmp,vendor)
+  -w, --wait                 Wait for command to finish before proxying a request.
   -t, --timeout int          timeout for proxied requests (default 10)
-
 
   -h, --help                 help for tychus
       --debug                print debug output

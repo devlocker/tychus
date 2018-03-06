@@ -49,7 +49,7 @@ func init() {
 	rootCmd.Flags().StringSliceVarP(&ignored, "ignore", "x", []string{"node_modules", "log", "tmp", "vendor"}, "comma separated list of directories to ignore file changes in.")
 	rootCmd.Flags().IntVarP(&proxyPort, "proxy-port", "p", 4000, "proxy port")
 	rootCmd.Flags().IntVarP(&timeout, "timeout", "t", 10, "timeout for proxied requests")
-	rootCmd.Flags().BoolVar(&wait, "wait", false, "Wait for command to finish before proxying a request")
+	rootCmd.Flags().BoolVarP(&wait, "wait", "w", false, "Wait for command to finish before proxying a request")
 }
 
 func start(args []string) {
