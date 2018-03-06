@@ -34,7 +34,7 @@ func (r *runner) run() error {
 	}
 
 	if r.config.Wait {
-		r.wait()
+		return r.wait()
 	} else {
 		go r.wait()
 	}
@@ -68,17 +68,25 @@ func (r *runner) execute() error {
 // Wait for the command to finish. If the process exits with an error, only log
 // it if it exit status is postive, as status code -1 is returned when the
 // process was killed by runner#kill.
-func (r *runner) wait() {
+func (r *runner) wait() error {
 	err := r.cmd.Wait()
 
 	if err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			ws := exiterr.Sys().(syscall.WaitStatus)
 			if ws.ExitStatus() > 0 {
-				r.errors <- errors.New(r.stderr.String())
+				err = errors.New(r.stderr.String())
+
+				if r.config.Wait {
+					return err
+				} else {
+					r.errors <- err
+				}
 			}
 		}
 	}
+
+	return nil
 }
 
 // Kill the existing process & process group

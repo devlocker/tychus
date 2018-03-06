@@ -11,6 +11,8 @@
 // but before it is ready to accept requests.
 package tychus
 
+import "time"
+
 type Orchestrator struct {
 	config  *Configuration
 	watcher *watcher
@@ -31,37 +33,37 @@ func (o *Orchestrator) Start() error {
 	stop := make(chan error, 1)
 
 	go func() {
-		err := o.proxy.start()
-		if err != nil {
+		if err := o.proxy.start(); err != nil {
 			stop <- err
 		}
 	}()
 
-	err := o.runner.run()
-	if err != nil {
-		o.proxy.error(err)
+	if err := o.runner.run(); err != nil {
+		o.proxy.setError(err)
 	}
 
 	for {
 		select {
 		case <-o.proxy.requests:
-			o.config.Logger.Debug("Request started")
-
 			modified := o.watcher.scan()
-			if modified || o.proxy.mode == mode_errored {
-				o.config.Logger.Debug("Rerunnning")
+			if modified {
+				o.config.Logger.Debug("Runner: FS modified, rerunning")
 
 				if err := o.runner.run(); err != nil {
-					o.proxy.error(err)
+					o.proxy.setError(err)
+					o.proxy.unpause <- true
 					continue
 				}
+
+				o.proxy.clearError()
 			}
 
-			o.proxy.serve()
+			o.watcher.lastRun = time.Now()
+			o.proxy.unpause <- true
 
 		case err := <-o.runner.errors:
-			o.config.Logger.Debug("Runner errored")
-			o.proxy.error(err)
+			o.config.Logger.Debug("Runner: Error")
+			o.proxy.setError(err)
 
 		case err := <-stop:
 			o.Stop()

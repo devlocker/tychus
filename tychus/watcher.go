@@ -21,7 +21,7 @@ func newWatcher(c *Configuration) *watcher {
 }
 
 func (w *watcher) scan() bool {
-	w.config.Logger.Debug("Scan: Start")
+	w.config.Logger.Debug("Watcher: Start")
 	start := time.Now()
 
 	modified := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
@@ -30,15 +30,14 @@ func (w *watcher) scan() bool {
 		}
 
 		if info.ModTime().After(w.lastRun) {
+			w.config.Logger.Debugf("Watcher: Found modified file: %v", path)
 			return errors.New(path)
 		}
 
 		return nil
 	})
 
-	w.config.Logger.Debugf("Scan: took: %v", time.Since(start))
-
-	w.lastRun = time.Now()
+	w.config.Logger.Debugf("Watcher: Scan finished: %v", time.Since(start))
 
 	return modified != nil
 }

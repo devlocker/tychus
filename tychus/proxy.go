@@ -11,19 +11,12 @@ import (
 	"time"
 )
 
-type mode uint32
-
-const (
-	mode_errored mode = 1 << iota
-	mode_serving
-)
-
 type proxy struct {
 	config   *Configuration
 	errorStr string
-	mode     mode
 	requests chan bool
 	revproxy *httputil.ReverseProxy
+	unpause  chan bool
 }
 
 // Returns a newly configured proxy
@@ -38,9 +31,9 @@ func newProxy(c *Configuration) *proxy {
 
 	p := &proxy{
 		config:   c,
-		revproxy: revproxy,
-		mode:     mode_serving,
 		requests: make(chan bool),
+		revproxy: revproxy,
+		unpause:  make(chan bool),
 	}
 
 	return p
@@ -68,6 +61,8 @@ func (p *proxy) start() error {
 // Proxy the request to the application server.
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.requests <- true
+
+	<-p.unpause
 
 	if ok := p.forward(w, r); ok {
 		return
@@ -99,7 +94,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *proxy) forward(w http.ResponseWriter, r *http.Request) bool {
-	if p.mode == mode_errored {
+	if len(p.errorStr) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(p.errorStr))
 		return true
@@ -113,15 +108,13 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) bool {
 	return writer.status != http.StatusBadGateway
 }
 
-func (p *proxy) serve() {
-	p.config.Logger.Debug("Proxy: Serving")
-	p.mode = mode_serving
+func (p *proxy) setError(err error) {
+	p.config.Logger.Debug("Proxy: Error Mode")
+	p.errorStr = err.Error()
 }
 
-func (p *proxy) error(err error) {
-	p.config.Logger.Debug("Proxy: Error Mode")
-	p.mode = mode_errored
-	p.errorStr = err.Error()
+func (p *proxy) clearError() {
+	p.errorStr = ""
 }
 
 // Wrapper around http.ResponseWriter. Since the proxy works rather naively -

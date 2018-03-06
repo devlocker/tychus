@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "0.6.2"
+var version = "0.6.3"
 
 var appPort int
 var debug bool
