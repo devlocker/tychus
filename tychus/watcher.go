@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/MichaelTJones/walk"
 )
 
 type watcher struct {
@@ -24,9 +26,9 @@ func (w *watcher) scan() bool {
 	w.config.Logger.Debug("Watcher: Start")
 	start := time.Now()
 
-	modified := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+	modified := walk.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() && w.shouldSkipDir(path) {
-			return filepath.SkipDir
+			return walk.SkipDir
 		}
 
 		if info.ModTime().After(w.lastRun) {

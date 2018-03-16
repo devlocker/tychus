@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/MichaelTJones/walk"
+  packages = ["."]
+  revision = "4748e29d5718c2df4028a6543edf86fd8cc0f881"
+
+[[projects]]
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
