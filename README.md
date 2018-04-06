@@ -64,7 +64,7 @@ Note: Tychus will not look for file system changes in any hidden directories
 // Go - Hello World Server
 $ tychus go run main.go
 [tychus] Proxing requests on port 4000 to 3000
-[Go App] App Starting
+[Go App] App Starting on Port 3000
 
 // Make a request
 $ curl localhost:4000
@@ -74,7 +74,7 @@ Hello World
 
 // Save a file, next request will restart your webapp
 $ curl localhost:4000
-[Go App] App Starting
+[Go App] App Starting on Port 3000
 Hello World
 ```
 
